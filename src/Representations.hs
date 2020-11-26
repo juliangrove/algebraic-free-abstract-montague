@@ -18,21 +18,25 @@ class Lambda repr where
   fst_ :: repr (a, b) -> repr a
   snd_ :: repr (a, b) -> repr b
 
+class Constant a repr where
+  c :: Int -> repr a
+
 class Heyting repr where
   (/\), (\/), (-->) :: repr Bool -> repr Bool -> repr Bool
   true, false :: repr Bool
 
-class HOL repr where
+class HOL a repr where
   forall, exists :: (repr a -> repr Bool) -> repr Bool
 
 class Equality a repr where
   equals :: repr a -> repr a -> repr Bool
 
+
 -- ===============
 -- == Instances ==
 -- ===============
 
--- | Evaluation.
+-- | Evaluation
 newtype Eval a = Eval { unEval :: a }
 
 instance Lambda Eval where
@@ -50,15 +54,29 @@ instance Heyting Eval where
   true = Eval True
   false = Eval False
 
--- instance HOL Eval where
---   forall f = Eval $ all (unEval . f) (map Eval entities)
---   exists f = Eval $ any (unEval . f) (map Eval entities)
+-- | Class of types for which some domain of quantification can be determined
+class Domain a where
+  domain :: [a]
+
+instance Domain () where
+  domain = [()]
+
+instance Domain Entity where
+  domain = entities
+
+instance (Domain a, Domain b) => Domain (a, b) where
+  domain = [ (e, p) | e <- domain, p <- domain ]
+
+-- | Assuming there is such a domain...
+instance Domain a => HOL a Eval where
+  forall f = Eval $ all (unEval . f) (map Eval domain)
+  exists f = Eval $ any (unEval . f) (map Eval domain)
 
 instance Eq a => Equality a Eval where
   equals m n =  Eval $ unEval m == unEval n
 
 
--- | Pretty printing.
+-- | Pretty printing
 newtype Print a = Print { getInt :: Int -> String }
 
 instance Lambda Print where
@@ -73,6 +91,11 @@ instance Lambda Print where
   fst_ m = Print $ \i -> "π1 " ++ getInt m i
   snd_ m = Print $ \i -> "π2 " ++ getInt m i
 
+instance Constant (Entity -> Bool) Print where
+  c 0 = Print $ const "dog"
+  c 1 = Print $ const "cat"
+  c 2 = Print $ const "happy"
+
 instance Heyting Print where
   phi /\ psi = Print $ \i -> "(" ++ getInt phi i ++ " ∧ " ++ getInt psi i ++ ")"
   phi \/ psi = Print $ \i -> "(" ++ getInt phi i ++ " ∨ " ++ getInt psi i ++ ")"
@@ -80,7 +103,7 @@ instance Heyting Print where
   true = Print $ const "⊤"
   false = Print $ const "⊥"
 
-instance HOL Print where
+instance HOL a Print where
   forall f = Print $ \i -> "(∀x"
                            ++ show i
                            ++ "."

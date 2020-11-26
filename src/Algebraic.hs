@@ -26,10 +26,16 @@ import Prelude hiding (Monad(..))
 newtype (f ∘ g) v = Compose { getCompose :: f (g v) } deriving Functor
 data Id v = Id v deriving Functor
 
--- | The free graded monad Functor
+-- | The free graded monad over Functor
 data FreeGM f v where
   Pure :: v -> FreeGM Id v
   Join :: Functor f => f (FreeGM g v) -> FreeGM (f ∘ g) v
+
+instance Functor (FreeGM Id) where
+  fmap f (Pure v) = Pure $ f v
+
+instance Functor (FreeGM g) => Functor (FreeGM (f ∘ g)) where  
+  fmap f (Join m) = Join $ fmap (fmap f) m
 
 -- | Functor is monoidal
 type family Monoidal op where
@@ -48,108 +54,128 @@ Join m >>= k = Join $ fmap (>>= k) m
 (>>) :: FreeGM f v -> FreeGM g w -> FreeGM (Monoidal (f ∘ g)) w
 m >> n = m >>= const n
 
+join :: FreeGM f (FreeGM g v) -> FreeGM (Monoidal (f ∘ g)) v
+join m = m >>= id
+
 -- | Every parameter type and arity determines a functor
 data (p ~> a) v = Op p (a -> v) deriving Functor
 
-type Quantifier repr = (repr Entity -> repr Bool) -> repr Bool
-type Determiner repr = (repr Entity -> repr Bool) -> Quantifier repr
+type E repr = repr Entity
+type T repr = repr Bool
+type Pred p repr = repr p -> T repr
+type Quantifier repr = Pred Entity repr -> T repr
+type Determiner repr = Pred Entity repr -> Quantifier repr
 
 get :: FreeGM (() ~> s ∘ Id) s
 get = Join (Op () (\s -> Pure s))
 
 put :: s -> FreeGM (s ~> () ∘ Id) ()
-put s = Join (Op s (\() -> Pure ()))
+put s = Join (Op s return)
 
-choose :: [repr p] -> FreeGM ([repr p] ~> repr p ∘ Id) (repr p)
-choose l = Join (Op l (\p -> Pure p))
+choose :: Pred p repr -> FreeGM (Pred p repr ~> repr p ∘ Id) (repr p)
+choose pred = Join (Op pred return)
 
 scope :: Quantifier repr
-      -> FreeGM (Quantifier repr ~> repr Entity ∘ Id) (repr Entity)
-scope q = Join (Op q (\x -> Pure x))
+      -> FreeGM (Quantifier repr ~> E repr ∘ Id) (E repr)
+scope q = Join (Op q return)
 
 det :: Determiner repr
     -> FreeGM (Determiner repr ~> Determiner repr ∘ Id) (Determiner repr)
-det d = Join (Op d (\d' -> Pure d'))
+det d = Join (Op d return)
 
 -- | Class used to handle a computation with 'Choose' among the effects.
 class Handleable f p s repr where
-  handle :: FreeGM f (repr Bool)
-         -> FreeGM (() ~> s ∘ ([repr p] ~> repr p ∘ (s ~> () ∘ Id))) (repr Bool)
+  handle :: FreeGM f (T repr)
+         -> FreeGM (() ~> s ∘ (Pred p repr ~> repr p ∘ (s ~> () ∘ Id))) (T repr)
   
-instance Lambda repr => Handleable Id () s repr where
+instance (Lambda repr,
+          Equality () repr)
+      => Handleable Id () s repr where
   handle (Pure v) = do
     s <- get
-    choose [unit]
+    choose (equals unit)
     put s
     return v
 
-instance Handleable f p s repr => Handleable (() ~> s ∘ f) p s repr where
+instance Handleable f p s repr
+      => Handleable (() ~> s ∘ f) p s repr where
   handle (Join (Op () f)) = do
     s <- get
     case handle (f s) of
       Join (Op () g) -> g s
 
-instance Handleable f p s repr => Handleable (s ~> () ∘ f) p s repr where
+instance Handleable f p s repr
+      => Handleable (s ~> () ∘ f) p s repr where
   handle (Join (Op s f)) = do
     _s' <- get
     case handle (f ()) of
       Join (Op () g) -> g s
 
-getListParam :: FreeGM (() ~> s ∘ ([p] ~> p ∘ f)) v -> s -> [p]
-getListParam (Join (Op () g)) s = case g s of Join (Op l h) -> l
+getPredParam :: FreeGM (() ~> s ∘ (Pred p repr ~> repr p ∘ f)) v
+             -> s -> Pred p repr
+getPredParam (Join (Op () g)) s = case g s of Join (Op pred h) -> pred
 
-instance (Lambda repr, Handleable f p s repr)
-      => Handleable ([repr e] ~> (repr e) ∘ f) (e, p) s repr where
-  handle (Join (Op l f)) = do
+instance (Lambda repr,
+          Heyting repr,
+          Handleable f p s repr)
+      => Handleable (Pred e repr ~> repr e ∘ f) (e, p) s repr where
+  handle (Join (Op pred f)) = do
     s <- get
-    ep <- choose [ pair e' p'
-                 | e' <- l,
-                   p' <- getListParam (handle (f e')) s ]
+    ep <- choose (\ep' -> pred (fst_ ep')
+                          /\ getPredParam (handle (f (fst_ ep'))) s (snd_ ep'))
     let e = fst_ ep
         p = snd_ ep
     case handle (f e) of
       Join (Op () g) -> case g s of
         Join (Op _p' h) -> h p
 
-any_ :: (Heyting repr, HOL repr)
-     => (repr a -> repr Bool) -> (repr a -> repr Bool) -> repr Bool
-any_ restriction p = exists (\x -> restriction x /\ p x)
+-- any_ :: (Foldable t,
+--          Functor t,
+--          Heyting repr)
+--      => (repr a -> T repr) -> t (repr a) -> T repr
+-- any_ p t = foldr (/\) true $ fmap p t
 
-elementOf :: (Foldable t, Functor t, Heyting repr, Equality a repr)
-          => repr a -> t (repr a) -> repr Bool
-x `elementOf` l = foldr (/\) true $ fmap (equals x) l
+-- elem_ :: (Foldable t,
+--           Functor t,
+--           Heyting repr,
+--           Equality a repr)
+--       => repr a -> t (repr a) -> T repr
+-- x `elem_` l = any_ (equals x) l
 
-eval :: (Heyting repr, HOL repr, Equality p repr)
-     => FreeGM (() ~> s ∘ ([repr p] ~> (repr p) ∘ (s ~> () ∘ Id))) (repr Bool)
-     -> s -> repr Bool
+eval :: (Heyting repr,
+         HOL p repr,
+         Equality p repr)
+     => FreeGM (() ~> s ∘ (Pred p repr ~> (repr p) ∘ (s ~> () ∘ Id))) (T repr)
+     -> s -> T repr
 eval (Join (Op () f)) s
   = case f s of
-     Join (Op l g)
-        -> any_ (`elementOf` l) (\p -> case g p of
-                        Join (Op _s' h) -> case h () of
-                                             Pure a -> a)
+     Join (Op pred g) -> exists (\p -> case g p of
+                                  Join (Op _s' h) -> case h () of
+                                    Pure a -> a /\ pred p)
            
 instance (Lambda repr,
           Heyting repr,
-          HOL repr,
+          HOL p repr,
+          Equality () repr,
           Equality p repr,
           Handleable f p s repr)
-      => Handleable (Quantifier repr ~> (repr Entity) ∘ f) () s repr where
+      => Handleable (Quantifier repr ~> (E repr) ∘ f) () s repr where
   handle (Join (Op q f)) = do
     s <- get
-    choose [unit]
+    choose (equals unit)
     put s
     return (q (\x -> eval (handle @f @p (f x)) s))
 
 instance (Lambda repr,
           Heyting repr,
-          HOL repr,
+          HOL p repr,
+          Equality () repr,
           Equality p repr,
           Handleable f p s repr)
       => Handleable (Determiner repr ~> Determiner repr ∘ f) () s repr where
   handle (Join (Op d f)) = do
     s <- get
-    choose [unit]
+    choose (equals unit)
     put s
     return (d (\x -> eval (handle @f @p (f (\p q -> p x))) s) -- convervativity
               (\x -> eval (handle @f @p (f (\p q -> p x /\ q x))) s))
