@@ -2,6 +2,7 @@
     AllowAmbiguousTypes,
     DeriveFunctor,
     FlexibleInstances,
+    FunctionalDependencies,
     GADTs,
     MultiParamTypeClasses,
     RankNTypes,
@@ -83,8 +84,8 @@ det :: Determiner repr
     -> FreeGM (Determiner repr ~> Determiner repr ∘ Id) (Determiner repr)
 det d = Join (Op d return)
 
--- | Class used to handle a computation with 'Choose' among the effects.
-class Handleable f p s repr where
+-- | Class used to handle a computation
+class Handleable f p s repr | f -> p where
   handle :: FreeGM f (T repr)
          -> FreeGM (() ~> s ∘ (Pred p repr ~> repr p ∘ (s ~> () ∘ Id))) (T repr)
   

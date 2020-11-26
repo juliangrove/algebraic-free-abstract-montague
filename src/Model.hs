@@ -9,3 +9,12 @@ data Entity = E1  | E2  | E3  | E4  | E5  | E6
 
 entities :: [Entity]
 entities = [minBound..maxBound]
+
+dog' :: Entity -> Bool
+dog' x = x == E1 || x == E2
+
+cat' :: Entity -> Bool
+cat' x = x == E3 || x == E4
+
+happy' :: Entity -> Bool
+happy' x = x == E1 || x == E3

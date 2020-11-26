@@ -1,5 +1,7 @@
 {-# LANGUAGE
+    DataKinds,
     FlexibleContexts,
+    TypeApplications,
     TypeOperators #-}
 
 module Fragment where
@@ -9,6 +11,11 @@ import Algebraic
 import Model
 import Representations
 
+-- =====================================
+-- == Monadic application combinators ==
+-- =====================================
+
+-- | Forward application
 (|>) :: (Functor (FreeGM g),
          Functor (FreeGM f),
          Lambda repr)
@@ -17,6 +24,7 @@ import Representations
      -> FreeGM (Monoidal (f ∘ g)) (repr w)
 m |> n = join $ fmap (\f -> fmap (\x -> app f x) n) m
 
+-- | Backward application
 (<|) :: (Functor (FreeGM g),
          Functor (FreeGM f),
          Lambda repr)
@@ -25,6 +33,10 @@ m |> n = join $ fmap (\f -> fmap (\x -> app f x) n) m
      -> FreeGM (Monoidal (f ∘ g)) (repr w)
 m <| n = join $ fmap (\x -> fmap (\f -> app f x) n) m
 
+
+-- =============
+-- == Lexicon ==
+-- =============
 
 every' :: (Heyting repr,
            HOL Entity repr)
@@ -39,36 +51,45 @@ every pred = scope (every' pred)
 some :: Pred Entity repr -> FreeGM (Pred Entity repr ~> E repr ∘ Id) (E repr)
 some = choose
 
-dog :: Constant (Entity -> Bool) repr
+dog :: Constant (Entity -> Bool) 0 repr
     => repr (Entity -> Bool)
-dog = c 0
+dog = c @(Entity -> Bool) @0
 
-cat :: Constant (Entity -> Bool) repr
+cat :: Constant (Entity -> Bool) 1 repr
     => repr (Entity -> Bool)
-cat = c 1
+cat = c @(Entity -> Bool) @1
 
-happy :: Constant (Entity -> Bool) repr
+happy :: Constant (Entity -> Bool) 2 repr
     => repr (Entity -> Bool)
-happy = c 3
+happy = c @(Entity -> Bool) @2
 
+
+-- =======================
+-- == Example sentences ==
+-- =======================
+
+-- | 'Every dog is happy.'
 sentence1 :: (Lambda repr,
               Heyting repr,
               HOL Entity repr,
-              Constant (Entity -> Bool) repr)
+              Constant (Entity -> Bool) 0 repr,
+              Constant (Entity -> Bool) 2 repr)
           => FreeGM (Quantifier repr ~> E repr ∘ Id) (T repr)
 sentence1 = every (app dog) <| return happy
 
+-- | 'Some cat is happy.'
 sentence2 :: (Lambda repr,
               Heyting repr,
               HOL Entity repr,
-              Constant (Entity -> Bool) repr)
+              Constant (Entity -> Bool) 1 repr,
+              Constant (Entity -> Bool) 2 repr)
           => FreeGM (Pred Entity repr ~> E repr ∘ Id) (T repr)
 sentence2 = some (app cat) <| return happy
 
-test :: (Lambda repr,
-         Heyting repr,
-         HOL Entity repr,
-         Constant (Entity -> Bool) repr,
-         Handleable (Quantifier repr ~> E repr ∘ Id) p s repr)
-     => FreeGM ((() ~> s) ∘ ((Pred p repr ~> repr p) ∘ ((s ~> ()) ∘ Id))) (T repr)
-test = handle sentence1
+-- | Evaluate a sentence into (a representation of) a Bool.
+runSentence :: (Heyting repr,
+                HOL p repr,
+                Equality p repr,
+                Handleable f p [Entity] repr)
+            => FreeGM f (T repr) -> T repr
+runSentence phi = eval (handle phi) ([] @Entity)

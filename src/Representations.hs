@@ -1,9 +1,13 @@
 {-# LANGUAGE
+    AllowAmbiguousTypes,
+    DataKinds,
     FlexibleInstances,
+    KindSignatures,
     MultiParamTypeClasses #-}
 
 module Representations where
 
+import GHC.TypeNats
 import Model
 
 -- ==============
@@ -18,8 +22,8 @@ class Lambda repr where
   fst_ :: repr (a, b) -> repr a
   snd_ :: repr (a, b) -> repr b
 
-class Constant a repr where
-  c :: Int -> repr a
+class Constant a (i :: Nat) repr where
+  c :: repr a
 
 class Heyting repr where
   (/\), (\/), (-->) :: repr Bool -> repr Bool -> repr Bool
@@ -37,7 +41,7 @@ class Equality a repr where
 -- ===============
 
 -- | Evaluation
-newtype Eval a = Eval { unEval :: a }
+newtype Eval a = Eval { unEval :: a } deriving Show
 
 instance Lambda Eval where
   app m n = Eval $ unEval m (unEval n)
@@ -46,6 +50,15 @@ instance Lambda Eval where
   pair m n = Eval (unEval m, unEval n)
   fst_ = Eval . fst . unEval
   snd_ = Eval . snd . unEval
+
+instance Constant (Entity -> Bool) 0 Eval where
+  c = Eval dog'
+
+instance Constant (Entity -> Bool) 1 Eval where
+  c = Eval cat'
+
+instance Constant (Entity -> Bool) 2 Eval where
+  c = Eval happy'
 
 instance Heyting Eval where  
   phi /\ psi = Eval $ unEval phi && unEval psi
@@ -86,15 +99,19 @@ instance Lambda Print where
                         ++ "."
                         ++ getInt (f (Print $ const $ "x" ++ show i)) (succ i)
                         ++ ")"
-  unit = Print $ const "⋆"
+  unit = Print $ const "★"
   pair m n = Print $ \i -> "⟨" ++ getInt m i ++ ", " ++ getInt n i ++ "⟩"
-  fst_ m = Print $ \i -> "π1 " ++ getInt m i
-  snd_ m = Print $ \i -> "π2 " ++ getInt m i
+  fst_ m = Print $ \i -> "(π1 " ++ getInt m i ++ ")"
+  snd_ m = Print $ \i -> "(π2 " ++ getInt m i ++ ")"
 
-instance Constant (Entity -> Bool) Print where
-  c 0 = Print $ const "dog"
-  c 1 = Print $ const "cat"
-  c 2 = Print $ const "happy"
+instance Constant (Entity -> Bool) 0 Print where
+  c = Print $ const "dog"
+
+instance Constant (Entity -> Bool) 1 Print where
+  c = Print $ const "cat"
+
+instance Constant (Entity -> Bool) 2 Print where
+  c = Print $ const "happy"
 
 instance Heyting Print where
   phi /\ psi = Print $ \i -> "(" ++ getInt phi i ++ " ∧ " ++ getInt psi i ++ ")"
