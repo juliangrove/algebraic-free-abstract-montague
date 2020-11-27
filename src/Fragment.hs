@@ -1,6 +1,8 @@
 {-# LANGUAGE
+    AllowAmbiguousTypes,
     DataKinds,
     FlexibleContexts,
+    ScopedTypeVariables,
     TypeApplications,
     TypeOperators #-}
 
@@ -43,13 +45,36 @@ every' :: (Heyting repr,
        => Determiner repr
 every' pred k = forall (\x -> pred x --> k x)
 
-every :: (Heyting repr,
+every :: (Lambda repr,
+          Heyting repr,
           HOL Entity repr)
-      => Pred Entity repr -> FreeGM (Quantifier repr ~> E repr ∘ Id) (E repr)
-every pred = scope (every' pred)
+      => FreeGM f (repr (Entity -> Bool))
+      -> FreeGM
+          (Determiner repr ~> Determiner repr
+           ∘ Monoidal (f ∘ (Quantifier repr ~>  E repr ∘ Id)))
+          (E repr)                
+every pred = det every' >>= \q -> pred >>= \pred' -> scope (q (app pred'))
 
-some :: Pred Entity repr -> FreeGM (Pred Entity repr ~> E repr ∘ Id) (E repr)
-some = choose
+some :: Lambda repr
+     => repr (Entity -> Bool) -> FreeGM (Pred Entity repr ~> E repr ∘ Id) (E repr)
+some pred = choose (app pred)
+
+bind :: Context a repr
+     => FreeGM f (repr a)
+     -> FreeGM
+         (Monoidal (f ∘ (() ~> repr (Gamma a) ∘ (repr (Gamma a) ~> () ∘ Id))))
+         (repr a)
+bind m = m >>= \x -> get >>= \s -> put (upd x s) >> return x
+
+it :: Context a repr => FreeGM (() ~> repr (Gamma a) ∘ Id) (repr a)
+it = get >>= \s -> return (sel s)
+
+who :: (Lambda repr,
+        Heyting repr)
+    => repr ((Entity -> Bool) -> (Entity -> Bool) -> Entity -> Bool)
+who = lam (\p -> lam (\q -> lam (\x -> app p x /\ app q x)))
+
+-- | One-place predicates
 
 dog :: Constant (Entity -> Bool) 0 repr
     => repr (Entity -> Bool)
@@ -63,6 +88,16 @@ happy :: Constant (Entity -> Bool) 2 repr
     => repr (Entity -> Bool)
 happy = c @(Entity -> Bool) @2
 
+-- | Two-place predicates
+
+chase :: Constant (Entity -> Entity -> Bool) 0 repr
+      => repr (Entity -> Entity -> Bool)
+chase = c @(Entity -> Entity -> Bool) @0
+
+catch :: Constant (Entity -> Entity -> Bool) 1 repr
+      => repr (Entity -> Entity -> Bool)
+catch = c @(Entity -> Entity -> Bool) @1
+
 
 -- =======================
 -- == Example sentences ==
@@ -74,8 +109,10 @@ sentence1 :: (Lambda repr,
               HOL Entity repr,
               Constant (Entity -> Bool) 0 repr,
               Constant (Entity -> Bool) 2 repr)
-          => FreeGM (Quantifier repr ~> E repr ∘ Id) (T repr)
-sentence1 = every (app dog) <| return happy
+          => FreeGM (Determiner repr ~> Determiner repr
+                     ∘ (Quantifier repr ~> E repr ∘ Id))
+             (T repr)
+sentence1 = (every (return dog)) <| return happy
 
 -- | 'Some cat is happy.'
 sentence2 :: (Lambda repr,
@@ -84,12 +121,34 @@ sentence2 :: (Lambda repr,
               Constant (Entity -> Bool) 1 repr,
               Constant (Entity -> Bool) 2 repr)
           => FreeGM (Pred Entity repr ~> E repr ∘ Id) (T repr)
-sentence2 = some (app cat) <| return happy
+sentence2 = some cat <| return happy
+
+-- | 'Every dog who chased a cat caught it.'
+sentence3 :: (Lambda repr,
+              Heyting repr,
+              HOL Entity repr,
+              Constant (Entity -> Bool) 0 repr,
+              Constant (Entity -> Bool) 1 repr,
+              Constant (Entity -> Entity -> Bool) 0 repr,
+              Constant (Entity -> Entity -> Bool) 1 repr,
+              Context Entity repr)
+          => FreeGM
+              (Determiner repr ~> Determiner repr
+               ∘ (Pred Entity repr ~> E repr
+                  ∘ (() ~> repr [Entity]
+                     ∘ (repr [Entity] ~> ()
+                        ∘ (Quantifier repr ~> E repr
+                           ∘ (() ~> repr [Entity]
+                              ∘ Id))))))
+              (T repr)
+sentence3 = every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
 
 -- | Evaluate a sentence into (a representation of) a Bool.
-runSentence :: (Heyting repr,
+runSentence :: forall p repr a f.
+               (Heyting repr,
                 HOL p repr,
                 Equality p repr,
-                Handleable f p [Entity] repr)
+                Context a repr,
+                Handleable f p (repr (Gamma a)) repr)
             => FreeGM f (T repr) -> T repr
-runSentence phi = eval (handle phi) ([] @Entity)
+runSentence phi = eval (handle phi) (empty @a @repr)

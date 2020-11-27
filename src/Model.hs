@@ -10,6 +10,8 @@ data Entity = E1  | E2  | E3  | E4  | E5  | E6
 entities :: [Entity]
 entities = [minBound..maxBound]
 
+-- | Properties
+
 dog' :: Entity -> Bool
 dog' x = x == E1 || x == E2
 
@@ -18,3 +20,11 @@ cat' x = x == E3 || x == E4
 
 happy' :: Entity -> Bool
 happy' x = x == E1 || x == E3
+
+-- | Binary relations
+
+chase' :: Entity -> Entity -> Bool
+chase' x y = (y == E1 && (x == E3 || x == E4)) || (y == E2 && x == E4)
+
+catch' :: Entity -> Entity -> Bool
+catch' x y = (y == E1 && x == E4) || (y == E2 && x == E4)

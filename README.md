@@ -1,11 +1,11 @@
 # algebraic-free-abstract-montague
 
-Examples:
+Example (see [Fragment.hs](https://github.com/juliangrove/algebraic-free-abstract-montague/blob/main/src/Fragment.hs)): 'Every dog who chased a cat caught it.'
 
-`runSentence sentence1 :: Print Bool`
+Print:
 
-`runSentence sentence1 :: Eval Bool`
+`runSentence @() @Print @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)`
 
-`runSentence sentence2 :: Print Bool`
+Evaluate:
 
-`runSentence sentence2 :: Eval Bool`
+`runSentence @() @Eval @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)`

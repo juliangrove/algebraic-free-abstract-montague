@@ -3,7 +3,8 @@
     DataKinds,
     FlexibleInstances,
     KindSignatures,
-    MultiParamTypeClasses #-}
+    MultiParamTypeClasses,
+    TypeFamilies #-}
 
 module Representations where
 
@@ -35,12 +36,19 @@ class HOL a repr where
 class Equality a repr where
   equals :: repr a -> repr a -> repr Bool
 
+class Context a repr where
+  type Gamma a
+  empty :: repr (Gamma a)
+  upd :: repr a -> repr (Gamma a) -> repr (Gamma a)
+  sel :: repr (Gamma a) -> repr a
+  
 
 -- ===============
 -- == Instances ==
 -- ===============
 
 -- | Evaluation
+
 newtype Eval a = Eval { unEval :: a } deriving Show
 
 instance Lambda Eval where
@@ -59,6 +67,12 @@ instance Constant (Entity -> Bool) 1 Eval where
 
 instance Constant (Entity -> Bool) 2 Eval where
   c = Eval happy'
+
+instance Constant (Entity -> Entity -> Bool) 0 Eval where
+  c = Eval chase'
+
+instance Constant (Entity -> Entity -> Bool) 1 Eval where
+  c = Eval catch'
 
 instance Heyting Eval where  
   phi /\ psi = Eval $ unEval phi && unEval psi
@@ -88,21 +102,56 @@ instance Domain a => HOL a Eval where
 instance Eq a => Equality a Eval where
   equals m n =  Eval $ unEval m == unEval n
 
+instance Context Entity Eval where
+  type Gamma Entity = [Entity]
+  empty = Eval []
+  upd x c = Eval $ unEval x : unEval c
+  sel c = Eval $ unEval c !! 0
+
 
 -- | Pretty printing
-newtype Print a = Print { getInt :: Int -> String }
+
+data Var = Var Char Int
+
+instance Enum Var where
+  succ (Var c i) = case c of
+                     'x' -> Var 'y' i
+                     'y' -> Var 'z' i
+                     'z' -> Var 'u' i
+                     'u' -> Var 'v' i
+                     'v' -> Var 'w' i
+                     'w' -> Var 'x' (succ i)
+  toEnum i = case mod i 6 of
+               0 -> Var 'x' (div i 6)
+               1 -> Var 'y' (div i 6)
+               2 -> Var 'z' (div i 6)
+               3 -> Var 'u' (div i 6)
+               4 -> Var 'v' (div i 6)
+               5 -> Var 'w' (div i 6)
+  fromEnum (Var c i) = case c of
+                         'x' -> i*6
+                         'y' -> i*6 + 1
+                         'z' -> i*6 + 2
+                         'u' -> i*6 + 3
+                         'v' -> i*6 + 4
+                         'w' -> i*6 + 5
+
+instance Show Var where
+  show (Var c i) = if i == 0 then [c] else 'c' : show i
+
+newtype Print a = Print { getVar :: Var -> String }
 
 instance Lambda Print where
-  app m n = Print $ \i -> "(" ++ getInt m i ++ " " ++ getInt n i ++ ")"
-  lam f = Print $ \i -> "(λx"
+  app m n = Print $ \i -> "(" ++ getVar m i ++ " " ++ getVar n i ++ ")"
+  lam f = Print $ \i -> "(λ"
                         ++ show i
                         ++ "."
-                        ++ getInt (f (Print $ const $ "x" ++ show i)) (succ i)
+                        ++ getVar (f (Print $ const $ "" ++ show i)) (succ i)
                         ++ ")"
   unit = Print $ const "★"
-  pair m n = Print $ \i -> "⟨" ++ getInt m i ++ ", " ++ getInt n i ++ "⟩"
-  fst_ m = Print $ \i -> "(π1 " ++ getInt m i ++ ")"
-  snd_ m = Print $ \i -> "(π2 " ++ getInt m i ++ ")"
+  pair m n = Print $ \i -> "⟨" ++ getVar m i ++ ", " ++ getVar n i ++ "⟩"
+  fst_ m = Print $ \i -> "(π1 " ++ getVar m i ++ ")"
+  snd_ m = Print $ \i -> "(π2 " ++ getVar m i ++ ")"
 
 instance Constant (Entity -> Bool) 0 Print where
   c = Print $ const "dog"
@@ -113,26 +162,38 @@ instance Constant (Entity -> Bool) 1 Print where
 instance Constant (Entity -> Bool) 2 Print where
   c = Print $ const "happy"
 
+instance Constant (Entity -> Entity -> Bool) 0 Print where
+  c = Print $ const "chase"
+
+instance Constant (Entity -> Entity -> Bool) 1 Print where
+  c = Print $ const "catch"
+
 instance Heyting Print where
-  phi /\ psi = Print $ \i -> "(" ++ getInt phi i ++ " ∧ " ++ getInt psi i ++ ")"
-  phi \/ psi = Print $ \i -> "(" ++ getInt phi i ++ " ∨ " ++ getInt psi i ++ ")"
-  phi --> psi = Print $ \i -> "(" ++ getInt phi i ++ " → " ++ getInt psi i ++ ")"
+  phi /\ psi = Print $ \i -> "(" ++ getVar phi i ++ " ∧ " ++ getVar psi i ++ ")"
+  phi \/ psi = Print $ \i -> "(" ++ getVar phi i ++ " ∨ " ++ getVar psi i ++ ")"
+  phi --> psi = Print $ \i -> "(" ++ getVar phi i ++ " → " ++ getVar psi i ++ ")"
   true = Print $ const "⊤"
   false = Print $ const "⊥"
 
 instance HOL a Print where
-  forall f = Print $ \i -> "(∀x"
+  forall f = Print $ \i -> "(∀"
                            ++ show i
                            ++ "."
-                           ++ getInt (f (Print $ const $ "x" ++ show i)) (succ i)
+                           ++ getVar (f (Print $ const $ "" ++ show i)) (succ i)
                            ++ ")"
-  exists f = Print $ \i -> "(∃x"
+  exists f = Print $ \i -> "(∃"
                            ++ show i
                            ++ "."
-                           ++ getInt (f (Print $ const $ "x" ++ show i)) (succ i)
+                           ++ getVar (f (Print $ const $ "" ++ show i)) (succ i)
                            ++ ")"
 instance Equality a Print where  
-  equals m n = Print $ \i -> "(" ++ getInt m i ++ " = " ++ getInt n i ++ ")"
+  equals m n = Print $ \i -> "(" ++ getVar m i ++ " = " ++ getVar n i ++ ")"
 
 instance Show (Print a) where
-  show (Print a) = a 0
+  show (Print a) = a (Var 'x' 0)
+
+instance Context a Print where
+  type Gamma a = [a]
+  empty = Print $ const "ε"
+  upd x c = Print $ \i -> getVar x i ++ "::" ++ getVar c i
+  sel c = Print $ \i -> "(sel (" ++ getVar c i ++ "))"
