@@ -189,11 +189,11 @@ instance HOL a Print where
 instance Equality a Print where  
   equals m n = Print $ \i -> "(" ++ getVar m i ++ " = " ++ getVar n i ++ ")"
 
-instance Show (Print a) where
-  show (Print a) = a (Var 'x' 0)
-
 instance Context a Print where
   type Gamma a = [a]
   empty = Print $ const "ε"
   upd x c = Print $ \i -> getVar x i ++ "::" ++ getVar c i
   sel c = Print $ \i -> "(sel (" ++ getVar c i ++ "))"
+
+instance Show (Print a) where
+  show (Print a) = a (Var 'x' 0)

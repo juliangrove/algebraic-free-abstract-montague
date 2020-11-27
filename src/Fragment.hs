@@ -152,3 +152,7 @@ runSentence :: forall p repr a f.
                 Handleable f p (repr (Gamma a)) repr)
             => FreeGM f (T repr) -> T repr
 runSentence phi = eval (handle phi) (empty @a @repr)
+
+test1 =  runSentence @() @Print @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
+
+test2 = runSentence @() @Eval @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
