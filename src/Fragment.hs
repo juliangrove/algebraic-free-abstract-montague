@@ -163,4 +163,4 @@ test3 = runSentence @() @CoqTerm @Entity $ every (return dog <| (return who |> (
 
 -- If you evaluate, e.g., test3 in your REPL, you should get:
 -- >>> test3
--- (exists (x : unit), ((forall (x : Entity), ((exists (y : (prod Entity unit)), ((((chase (fst y)) x) /\ (dog x)) /\ ((cat (fst y)) /\ (tt = (snd y))))) -> (exists (y : (prod Entity unit)), (((((chase (fst y)) x) /\ (dog x)) /\ (exists (y : unit), (((catch (sel (upd (fst y) emp))) x) /\ (tt = y)))) /\ ((cat (fst y)) /\ (tt = (snd y))))))) /\ (tt = x)))
+-- (exists (x : unit), ((forall (y : Entity), ((exists (z : (prod Entity unit)), ((((chase (fst z)) y) /\ (dog y)) /\ ((cat (fst z)) /\ (tt = (snd z))))) -> (exists (z : (prod Entity unit)), (((((chase (fst z)) y) /\ (dog y)) /\ (exists (u : unit), (((catch (sel (upd (fst z) emp))) y) /\ (tt = u)))) /\ ((cat (fst z)) /\ (tt = (snd z))))))) /\ (tt = x)))

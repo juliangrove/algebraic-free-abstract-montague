@@ -254,7 +254,7 @@ helpShow False_ i = "false"
 helpShow (Forall t f) i = "(forall (" ++ show i ++ " : " ++ helpShow (Type t) i
                           ++ "), " ++ helpShow (f (Var_ (show i))) (succ i) ++ ")"
 helpShow (Exists t f) i = "(exists (" ++ show i ++ " : " ++ helpShow (Type t) i
-                          ++ "), " ++ helpShow (f (Var_ (show i))) i ++ ")"
+                          ++ "), " ++ helpShow (f (Var_ (show i))) (succ i) ++ ")"
 helpShow (Equals m n) i = "(" ++ helpShow m i ++ " = " ++ helpShow n i ++ ")"
 helpShow Empty i = "emp"
 helpShow (Upd m c) i = "(upd " ++ helpShow m i ++ " " ++ helpShow c i ++ ")"
