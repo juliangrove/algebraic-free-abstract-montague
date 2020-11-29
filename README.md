@@ -9,3 +9,7 @@ Print:
 Evaluate:
 
 `test2 = runSentence @() @Eval @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)`
+
+Export to [Coq](https://coq.inria.fr/):
+
+`test3 = runSentence @() @CoqTerm @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)`

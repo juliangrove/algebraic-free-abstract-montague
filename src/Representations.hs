@@ -1,10 +1,15 @@
 {-# LANGUAGE
     AllowAmbiguousTypes,
     DataKinds,
+    FlexibleContexts,
     FlexibleInstances,
+    GADTs,
     KindSignatures,
     MultiParamTypeClasses,
-    TypeFamilies #-}
+    ScopedTypeVariables,
+    TypeApplications,
+    TypeFamilies,
+    UndecidableInstances #-}
 
 module Representations where
 
@@ -92,7 +97,7 @@ instance Domain Entity where
   domain = entities
 
 instance (Domain a, Domain b) => Domain (a, b) where
-  domain = [ (e, p) | e <- domain, p <- domain ]
+  domain = [ (a, b) | a <- domain, b <- domain ]
 
 -- | Assuming there is such a domain...
 instance Domain a => HOL a Eval where
@@ -197,3 +202,137 @@ instance Context a Print where
 
 instance Show (Print a) where
   show (Print a) = a (Var 'x' 0)
+
+
+-- | Coq HOAS
+
+data CoqType a where
+  Entity :: CoqType Entity
+  Prop :: CoqType Bool
+  Arrow :: CoqType a -> CoqType b -> CoqType (a -> b)
+  Unit :: CoqType ()
+  Prod :: CoqType a -> CoqType b -> CoqType (a, b)
+
+data CoqTerm a where
+  Var_ :: String -> CoqTerm a
+  Con :: String -> CoqTerm a
+  App :: CoqTerm (a -> b) -> CoqTerm a -> CoqTerm b
+  Lam :: (CoqTerm a -> CoqTerm b) -> CoqTerm (a -> b)
+  TT :: CoqTerm ()
+  Pair :: CoqTerm a -> CoqTerm b -> CoqTerm (a, b)
+  Fst :: CoqTerm (a, b) -> CoqTerm a
+  Snd :: CoqTerm (a, b) -> CoqTerm b
+  And, Or, Impl :: CoqTerm Bool -> CoqTerm Bool -> CoqTerm Bool
+  True_, False_ :: CoqTerm Bool
+  Forall, Exists :: CoqType a
+                 -> (CoqTerm a -> CoqTerm Bool)
+                 -> CoqTerm Bool
+  Equals :: CoqTerm b -> CoqTerm b -> CoqTerm Bool
+  Empty :: Context a CoqTerm => CoqTerm (Gamma a)
+  Upd :: Context a CoqTerm
+      => CoqTerm a -> CoqTerm (Gamma a) -> CoqTerm (Gamma a)
+  Sel :: Context a CoqTerm => CoqTerm (Gamma a) -> CoqTerm a
+  Type :: CoqType a -> CoqTerm Bool
+
+helpShow :: CoqTerm a -> Var -> String
+helpShow (Var_ s) i = s
+helpShow (Con s) i = s
+helpShow (App m n) i = "(" ++ helpShow m i ++ " " ++ helpShow n i ++ ")"
+helpShow (Lam f) i = error "Unknown type!"
+helpShow TT i = "tt"
+helpShow (Pair m n) i = "(pair " ++ helpShow m i ++ " " ++ helpShow n i ++ ")"
+helpShow (Fst m) i = "(fst " ++ helpShow m i ++ ")"
+helpShow (Snd m) i = "(snd " ++ helpShow m i ++ ")"
+helpShow (And phi psi) i = "(" ++ helpShow phi i
+                           ++ " /\\ " ++ helpShow psi i ++ ")"
+helpShow (Or phi psi) i = "(" ++ helpShow phi i
+                          ++ " \\/ " ++ helpShow psi i ++ ")"
+helpShow (Impl phi psi) i = "(" ++ helpShow phi i
+                            ++ " -> " ++ helpShow psi i ++ ")"
+helpShow True_ i = "true"
+helpShow False_ i = "false"
+helpShow (Forall t f) i = "(forall (" ++ show i ++ " : " ++ helpShow (Type t) i
+                          ++ "), " ++ helpShow (f (Var_ (show i))) (succ i) ++ ")"
+helpShow (Exists t f) i = "(exists (" ++ show i ++ " : " ++ helpShow (Type t) i
+                          ++ "), " ++ helpShow (f (Var_ (show i))) i ++ ")"
+helpShow (Equals m n) i = "(" ++ helpShow m i ++ " = " ++ helpShow n i ++ ")"
+helpShow Empty i = "emp"
+helpShow (Upd m c) i = "(upd " ++ helpShow m i ++ " " ++ helpShow c i ++ ")"
+helpShow (Sel c) i = "(sel " ++ helpShow c i ++ ")"
+helpShow (Type Entity) i = "Entity"
+helpShow (Type Prop) i = "Prop"
+helpShow (Type (Arrow t1 t2)) i = "(" ++ helpShow (Type t1) i ++ " -> "
+                                  ++ helpShow (Type t2) i ++ ")"
+helpShow (Type Unit) i = "unit"
+helpShow (Type (Prod t1 t2)) i = "(prod " ++ helpShow (Type t1) i ++ " "
+                                  ++ helpShow (Type t2) i ++ ")"
+
+instance Show (CoqTerm a) where
+  show m = helpShow m (Var 'x' 0)
+
+instance Lambda CoqTerm where
+  app m n = case m of
+              Lam f -> f n
+              _ -> App m n
+  lam = Lam
+  unit = TT
+  pair = Pair
+  fst_ m = case m of
+             Pair n o -> n
+             _ -> Fst m
+  snd_ m = case m of
+             Pair n o -> o
+             _ -> Snd m
+
+instance Constant (Entity -> Bool) 0 CoqTerm where
+  c = Con "dog"
+
+instance Constant (Entity -> Bool) 1 CoqTerm where
+  c = Con "cat"
+
+instance Constant (Entity -> Bool) 2 CoqTerm where
+  c = Con "happy"
+
+instance Constant (Entity -> Entity -> Bool) 0 CoqTerm where
+  c = Con "chase"
+
+instance Constant (Entity -> Entity -> Bool) 1 CoqTerm where
+  c = Con "catch"
+
+instance Heyting (CoqTerm) where
+  (/\) = And
+  (\/) = Or
+  (-->) = Impl
+  true = True_
+  false = False_
+
+class KnownCoqType a where
+  knownCoqType :: CoqType a
+
+instance KnownCoqType Entity where
+  knownCoqType = Entity
+
+instance KnownCoqType Bool where
+  knownCoqType = Prop
+
+instance (KnownCoqType a, KnownCoqType b) => KnownCoqType (a -> b) where
+  knownCoqType = Arrow knownCoqType knownCoqType
+
+instance KnownCoqType () where
+  knownCoqType = Unit
+
+instance (KnownCoqType a, KnownCoqType b) => KnownCoqType (a, b) where
+  knownCoqType = Prod knownCoqType knownCoqType
+
+instance KnownCoqType a => HOL a CoqTerm where
+  forall = Forall knownCoqType
+  exists = Exists knownCoqType
+
+instance Equality a (CoqTerm) where
+  equals = Equals
+
+instance Context a (CoqTerm) where
+  type Gamma a = [a]
+  empty = Empty
+  upd = Upd
+  sel = Sel

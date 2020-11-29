@@ -112,7 +112,7 @@ sentence1 :: (Lambda repr,
           => FreeGM (Determiner repr ~> Determiner repr
                      ∘ (Quantifier repr ~> E repr ∘ Id))
              (T repr)
-sentence1 = (every (return dog)) <| return happy
+sentence1 = every (return dog) <| return happy
 
 -- | 'Some cat is happy.'
 sentence2 :: (Lambda repr,
@@ -153,6 +153,14 @@ runSentence :: forall p repr a f.
             => FreeGM f (T repr) -> T repr
 runSentence phi = eval (handle phi) (empty @a @repr)
 
-test1 =  runSentence @() @Print @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
+-- | Examples from README
+
+test1 = runSentence @() @Print @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
 
 test2 = runSentence @() @Eval @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
+
+test3 = runSentence @() @CoqTerm @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
+
+-- If you evaluate, e.g., test3 in your REPL, you should get:
+-- >>> test3
+-- (exists (x : unit), ((forall (x : Entity), ((exists (y : (prod Entity unit)), ((((chase (fst y)) x) /\ (dog x)) /\ ((cat (fst y)) /\ (tt = (snd y))))) -> (exists (y : (prod Entity unit)), (((((chase (fst y)) x) /\ (dog x)) /\ (exists (y : unit), (((catch (sel (upd (fst y) emp))) x) /\ (tt = y)))) /\ ((cat (fst y)) /\ (tt = (snd y))))))) /\ (tt = x)))
