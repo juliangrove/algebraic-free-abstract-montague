@@ -1,11 +1,8 @@
 {-# LANGUAGE
-    AllowAmbiguousTypes,
     DeriveFunctor,
     FlexibleInstances,
     FunctionalDependencies,
     GADTs,
-    MultiParamTypeClasses,
-    RankNTypes,
     RebindableSyntax,
     TypeApplications,
     TypeFamilies,

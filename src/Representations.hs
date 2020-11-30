@@ -4,12 +4,8 @@
     FlexibleContexts,
     FlexibleInstances,
     GADTs,
-    KindSignatures,
     MultiParamTypeClasses,
-    ScopedTypeVariables,
-    TypeApplications,
-    TypeFamilies,
-    UndecidableInstances #-}
+    TypeFamilies #-}
 
 module Representations where
 
@@ -227,7 +223,7 @@ data CoqTerm a where
   Forall, Exists :: CoqType a
                  -> (CoqTerm a -> CoqTerm Bool)
                  -> CoqTerm Bool
-  Equals :: CoqTerm b -> CoqTerm b -> CoqTerm Bool
+  Equals :: CoqTerm a -> CoqTerm a -> CoqTerm Bool
   Empty :: Context a CoqTerm => CoqTerm (Gamma a)
   Upd :: Context a CoqTerm
       => CoqTerm a -> CoqTerm (Gamma a) -> CoqTerm (Gamma a)
@@ -249,8 +245,8 @@ helpShow (Or phi psi) i = "(" ++ helpShow phi i
                           ++ " \\/ " ++ helpShow psi i ++ ")"
 helpShow (Impl phi psi) i = "(" ++ helpShow phi i
                             ++ " -> " ++ helpShow psi i ++ ")"
-helpShow True_ i = "true"
-helpShow False_ i = "false"
+helpShow True_ i = "True"
+helpShow False_ i = "False"
 helpShow (Forall t f) i = "(forall (" ++ show i ++ " : " ++ helpShow (Type t) i
                           ++ "), " ++ helpShow (f (Var_ (show i))) (succ i) ++ ")"
 helpShow (Exists t f) i = "(exists (" ++ show i ++ " : " ++ helpShow (Type t) i
@@ -299,7 +295,7 @@ instance Constant (Entity -> Entity -> Bool) 0 CoqTerm where
 instance Constant (Entity -> Entity -> Bool) 1 CoqTerm where
   c = Con "catch"
 
-instance Heyting (CoqTerm) where
+instance Heyting CoqTerm where
   (/\) = And
   (\/) = Or
   (-->) = Impl
@@ -328,10 +324,10 @@ instance KnownCoqType a => HOL a CoqTerm where
   forall = Forall knownCoqType
   exists = Exists knownCoqType
 
-instance Equality a (CoqTerm) where
+instance Equality a CoqTerm where
   equals = Equals
 
-instance Context a (CoqTerm) where
+instance Context a CoqTerm where
   type Gamma a = [a]
   empty = Empty
   upd = Upd
