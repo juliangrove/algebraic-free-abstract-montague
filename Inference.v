@@ -5,7 +5,11 @@
        (2) Some dog chased some cat.
        (3) Some dog caught some cat.
    
-   are assigned Coq formulae by the Haskell code in /src, as illustrated at the end of Fragment.hs. This Coq file proves that sentences (1) and (2) entail sentence (3), in terms of the formulae they are assigned. Note the required axiom 'anaphora_resolution', which says that selecting from a context which has been updated with one element returns that element.
+   are assigned Coq formulae by the Haskell code in /src, as illustrated at the
+   end of Fragment.hs. This Coq file proves that sentences (1) and (2) entail
+   sentence (3), in terms of the formulae they are assigned. Note the required
+   axiom 'anaphora_resolution', which says that selecting from a context which
+   has been updated with one element returns that element.
  *)
 
 (* The type of entities *)
