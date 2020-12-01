@@ -35,34 +35,31 @@ Parameter sel : Gamma -> Entity.
 Axiom anaphora_resolution : (forall (x : Entity), sel (upd x emp) = x).
 
 (* Premise: 'Every dog who chased a cat caught it.' *)
-Axiom every_dog_who_chased_a_cat_caught_it : (exists (x : unit), ((forall (y : Entity), ((exists (z : (prod Entity unit)), ((((chase (fst z)) y) /\ (dog y)) /\ ((cat (fst z)) /\ (tt = (snd z))))) -> (exists (z : (prod Entity unit)), (((((chase (fst z)) y) /\ (dog y)) /\ (exists (u : unit), (((catch (sel (upd (fst z) emp))) y) /\ (tt = u)))) /\ ((cat (fst z)) /\ (tt = (snd z))))))) /\ (tt = x))).
+Axiom every_dog_who_chased_a_cat_caught_it : ((forall (x : Entity), ((exists (y : Entity), ((((chase y) x) /\ (dog x)) /\ ((cat y) /\ (tt = tt)))) -> (exists (y : Entity), (((((chase y) x) /\ (dog x)) /\ (((catch (sel (upd y emp))) x) /\ (tt = tt))) /\ ((cat y) /\ (tt = tt)))))) /\ (tt = tt)).
 
 (* Premise: 'Some dog chased some cat.' *)
-Axiom some_dog_chased_some_cat : (exists (x : (prod Entity (prod Entity unit))), (((chase (fst (snd x))) (fst x)) /\ ((dog (fst x)) /\ ((cat (fst (snd x))) /\ (tt = (snd (snd x))))))).
+Axiom some_dog_chased_some_cat : (exists (x : Entity), (exists (y : Entity), (((chase y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt)))))).
 
 (* Conclusion: 'Some dog caught some cat. *)
-Definition some_dog_caught_some_cat : (exists (x : (prod Entity (prod Entity unit))), (((catch (fst (snd x))) (fst x)) /\ ((dog (fst x)) /\ ((cat (fst (snd x))) /\ (tt = (snd (snd x))))))).
+Definition some_dog_caught_some_cat : (exists (x : Entity), (exists (y : Entity), (((catch y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt)))))).
 Proof.
   destruct some_dog_chased_some_cat.
-  assert (H1 : exists z : Entity * unit, (chase (fst z) (fst x) /\ dog (fst x)) /\ cat (fst z) /\ tt = snd z).
-  exists (fst (snd x), tt).
-  simpl.
-  destruct H.
-  destruct H0.
-  destruct H1.
-  auto.
   destruct every_dog_who_chased_a_cat_caught_it.
-  destruct H0.
-  destruct (H0 (fst x) H1).
+  pose (H0 x).
+  assert ((exists y : Entity, (chase y x /\ dog x) /\ cat y /\ tt = tt)).
+  destruct H.
+  destruct H.
+  destruct H2.
+  exists x0.
+  auto.
+  pose (e H2).
+  destruct e0.
   destruct H3.
+  destruct H3.
+  rewrite anaphora_resolution in H5.
   destruct H3.
   destruct H5.
-  destruct H5.
-  pose (anaphora_resolution (fst x1)).
-  rewrite e in H5.
-  destruct H3.
-  exists (fst x, (fst x1, tt)).
-  destruct H4.
-  simpl.
-  exact (conj H5 (conj H7 (conj H4 (eq_refl tt)))).
+  exists x.
+  exists x0.
+  auto.
 Qed.

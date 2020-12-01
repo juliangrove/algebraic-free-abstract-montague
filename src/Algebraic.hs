@@ -140,23 +140,44 @@ instance (Lambda repr,
 --       => repr a -> t (repr a) -> T repr
 -- x `elem_` l = any_ (equals x) l
 
-eval :: (Heyting repr,
+class ExistsTuple repr p where
+  existsTuple :: (Lambda repr,
+                  Heyting repr,
+                  HOL p repr,
+                  Equality p repr)
+              => (repr p -> T repr) -> T repr
+
+instance ExistsTuple repr () where
+  existsTuple f = f unit
+
+instance (ExistsTuple repr p,
+          HOL e repr,
+          HOL p repr,
+          Equality p repr)
+      => ExistsTuple repr (e, p) where
+  existsTuple f = exists (\x -> existsTuple (\p -> f (pair x p)))
+
+eval :: (Lambda repr,
+         Heyting repr,
          HOL p repr,
-         Equality p repr)
+         Equality p repr,
+         ExistsTuple repr p)
      => FreeGM (() ~> s ∘ (Pred p repr ~> (repr p) ∘ (s ~> () ∘ Id))) (T repr)
      -> s -> T repr
 eval (Join (Op () f)) s
   = case f s of
-     Join (Op pred g) -> exists (\p -> case g p of
-                                  Join (Op _s' h) -> case h () of
-                                    Pure a -> a /\ pred p)
-           
+     Join (Op pred g) -> existsTuple (\p -> case g p of
+                                              Join (Op _s' h)
+                                                -> case h () of
+                                                     Pure a -> a /\ pred p)
+
 instance (Lambda repr,
           Heyting repr,
           HOL p repr,
           Equality () repr,
           Equality p repr,
-          Handleable f p s repr)
+          Handleable f p s repr,
+          ExistsTuple repr p)
       => Handleable (Quantifier repr ~> (E repr) ∘ f) () s repr where
   handle (Join (Op q f)) = do
     s <- get
@@ -169,7 +190,8 @@ instance (Lambda repr,
           HOL p repr,
           Equality () repr,
           Equality p repr,
-          Handleable f p s repr)
+          Handleable f p s repr,
+          ExistsTuple repr p)
       => Handleable (Determiner repr ~> Determiner repr ∘ f) () s repr where
   handle (Join (Op d f)) = do
     s <- get

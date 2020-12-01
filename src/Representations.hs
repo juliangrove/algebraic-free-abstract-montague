@@ -147,7 +147,7 @@ instance Lambda Print where
   lam f = Print $ \i -> "(λ"
                         ++ show i
                         ++ "."
-                        ++ getVar (f (Print $ const $ "" ++ show i)) (succ i)
+                        ++ getVar (f (Print $ const $ show i)) (succ i)
                         ++ ")"
   unit = Print $ const "★"
   pair m n = Print $ \i -> "⟨" ++ getVar m i ++ ", " ++ getVar n i ++ "⟩"
@@ -180,12 +180,12 @@ instance HOL a Print where
   forall f = Print $ \i -> "(∀"
                            ++ show i
                            ++ "."
-                           ++ getVar (f (Print $ const $ "" ++ show i)) (succ i)
+                           ++ getVar (f (Print $ const $ show i)) (succ i)
                            ++ ")"
   exists f = Print $ \i -> "(∃"
                            ++ show i
                            ++ "."
-                           ++ getVar (f (Print $ const $ "" ++ show i)) (succ i)
+                           ++ getVar (f (Print $ const $ show i)) (succ i)
                            ++ ")"
 instance Equality a Print where  
   equals m n = Print $ \i -> "(" ++ getVar m i ++ " = " ++ getVar n i ++ ")"

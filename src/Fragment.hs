@@ -167,11 +167,13 @@ sentence5 = some dog <| (return catch |> some cat)
 
 -- | Evaluate a sentence into (a representation of) a Bool.
 runSentence :: forall repr p a f.
-               (Heyting repr,
+               (Lambda repr,
+                Heyting repr,
                 HOL p repr,
                 Equality p repr,
                 Context a repr,
-                Handleable f p (repr (Gamma a)) repr)
+                Handleable f p (repr (Gamma a)) repr,
+                ExistsTuple repr p)
             => FreeGM f (T repr) -> T repr
 runSentence phi = eval (handle phi) (empty @a @repr)
 
@@ -185,16 +187,15 @@ test3 = runSentence @CoqTerm @() @Entity $ every (return dog <| (return who |> (
 
 -- If you evaluate, e.g., test3 in your REPL, you should get:
 -- >>> test3
--- (exists (x : unit), ((forall (y : Entity), ((exists (z : (prod Entity unit)), ((((chase (fst z)) y) /\ (dog y)) /\ ((cat (fst z)) /\ (tt = (snd z))))) -> (exists (z : (prod Entity unit)), (((((chase (fst z)) y) /\ (dog y)) /\ (exists (u : unit), (((catch (sel (upd (fst z) emp))) y) /\ (tt = u)))) /\ ((cat (fst z)) /\ (tt = (snd z))))))) /\ (tt = x)))
+-- ((forall (x : Entity), ((exists (y : Entity), ((((chase y) x) /\ (dog x)) /\ ((cat y) /\ (tt = tt)))) -> (exists (y : Entity), (((((chase y) x) /\ (dog x)) /\ (((catch (sel (upd y emp))) x) /\ (tt = tt))) /\ ((cat y) /\ (tt = tt)))))) /\ (tt = tt))
 
 test4 = runSentence @CoqTerm @(Entity, (Entity, ())) @Entity $ some dog <| (return chase |> some cat)
 
 -- >>> test4
--- (exists (x : (prod Entity (prod Entity unit))), (((chase (fst (snd x))) (fst x)) /\ ((dog (fst x)) /\ ((cat (fst (snd x))) /\ (tt = (snd (snd x)))))))
---
+-- (exists (x : Entity), (exists (y : Entity), (((chase y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt))))))
 
 test5 = runSentence @CoqTerm @(Entity, (Entity, ())) @Entity $ some dog <| (return catch |> some cat)
 
 -- >>> test5
--- (exists (x : (prod Entity (prod Entity unit))), (((catch (fst (snd x))) (fst x)) /\ ((dog (fst x)) /\ ((cat (fst (snd x))) /\ (tt = (snd (snd x)))))))
---
+-- (exists (x : Entity), (exists (y : Entity), (((catch y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt))))))
+
