@@ -296,9 +296,21 @@ instance Constant (Entity -> Entity -> Bool) 1 CoqTerm where
   c = Con "catch"
 
 instance Heyting CoqTerm where
-  (/\) = And
-  (\/) = Or
-  (-->) = Impl
+  phi /\ psi = case phi of
+                 True_ -> psi
+                 _ -> case psi of
+                        True_ -> phi
+                        _ -> And phi psi
+  phi \/ psi = case phi of
+                 False_ -> psi
+                 _ -> case psi of
+                        False_ -> phi
+                        _ -> Or phi psi
+  phi --> psi = case phi of
+                  False_ -> True_
+                  _ -> case psi of
+                         True_ -> True_
+                         _ -> Impl phi psi
   true = True_
   false = False_
 

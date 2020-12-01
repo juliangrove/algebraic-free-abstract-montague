@@ -187,15 +187,15 @@ test3 = runSentence @CoqTerm @() @Entity $ every (return dog <| (return who |> (
 
 -- If you evaluate, e.g., test3 in your REPL, you should get:
 -- >>> test3
--- ((forall (x : Entity), ((exists (y : Entity), ((((chase y) x) /\ (dog x)) /\ ((cat y) /\ (tt = tt)))) -> (exists (y : Entity), (((((chase y) x) /\ (dog x)) /\ (((catch (sel (upd y emp))) x) /\ (tt = tt))) /\ ((cat y) /\ (tt = tt)))))) /\ (tt = tt))
+-- (forall (x : Entity), ((exists (y : Entity), ((cat y) /\ (((chase y) x) /\ (dog x)))) -> (exists (y : Entity), ((cat y) /\ ((((chase y) x) /\ (dog x)) /\ ((catch (sel (upd y emp))) x))))))
 
 test4 = runSentence @CoqTerm @(Entity, (Entity, ())) @Entity $ some dog <| (return chase |> some cat)
 
 -- >>> test4
--- (exists (x : Entity), (exists (y : Entity), (((chase y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt))))))
+-- (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((chase y) x))))
 
 test5 = runSentence @CoqTerm @(Entity, (Entity, ())) @Entity $ some dog <| (return catch |> some cat)
 
 -- >>> test5
--- (exists (x : Entity), (exists (y : Entity), (((catch y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt))))))
+-- (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((catch y) x))))
 

@@ -35,31 +35,26 @@ Parameter sel : Gamma -> Entity.
 Axiom anaphora_resolution : (forall (x : Entity), sel (upd x emp) = x).
 
 (* Premise: 'Every dog who chased a cat caught it.' *)
-Axiom every_dog_who_chased_a_cat_caught_it : ((forall (x : Entity), ((exists (y : Entity), ((((chase y) x) /\ (dog x)) /\ ((cat y) /\ (tt = tt)))) -> (exists (y : Entity), (((((chase y) x) /\ (dog x)) /\ (((catch (sel (upd y emp))) x) /\ (tt = tt))) /\ ((cat y) /\ (tt = tt)))))) /\ (tt = tt)).
+Axiom every_dog_who_chased_a_cat_caught_it : (forall (x : Entity), ((exists (y : Entity), ((cat y) /\ (((chase y) x) /\ (dog x)))) -> (exists (y : Entity), ((cat y) /\ ((((chase y) x) /\ (dog x)) /\ ((catch (sel (upd y emp))) x)))))).
 
 (* Premise: 'Some dog chased some cat.' *)
-Axiom some_dog_chased_some_cat : (exists (x : Entity), (exists (y : Entity), (((chase y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt)))))).
+Axiom some_dog_chased_some_cat : (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((chase y) x)))).
 
 (* Conclusion: 'Some dog caught some cat. *)
-Definition some_dog_caught_some_cat : (exists (x : Entity), (exists (y : Entity), (((catch y) x) /\ ((dog x) /\ ((cat y) /\ (tt = tt)))))).
+Definition some_dog_caught_some_cat : (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((catch y) x)))).
 Proof.
   destruct some_dog_chased_some_cat.
-  destruct every_dog_who_chased_a_cat_caught_it.
-  pose (H0 x).
-  assert ((exists y : Entity, (chase y x /\ dog x) /\ cat y /\ tt = tt)).
+  pose (every_dog_who_chased_a_cat_caught_it x).
+  destruct e.
   destruct H.
   destruct H.
-  destruct H2.
+  destruct H.
   exists x0.
   auto.
-  pose (e H2).
-  destruct e0.
-  destruct H3.
-  destruct H3.
-  rewrite anaphora_resolution in H5.
-  destruct H3.
-  destruct H5.
-  exists x.
-  exists x0.
+  rewrite anaphora_resolution in H0.
+  destruct H0.
+  destruct H1.
+  destruct H1.
+  exists x, x0.
   auto.
 Qed.
