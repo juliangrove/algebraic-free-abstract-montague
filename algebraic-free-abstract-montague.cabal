@@ -20,7 +20,7 @@ source-repository head
 
 library
   exposed-modules:
-      Algerbaic
+      Algebraic
     , Fragment
     , Model
     , Representations

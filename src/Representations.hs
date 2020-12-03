@@ -12,13 +12,47 @@ module Representations where
 import GHC.TypeNats
 import Model
 
+-- ===========
+-- == Types ==
+-- ===========
+
+-- | Syntax of types
+data Type a where
+  E :: Type Entity
+  T :: Type Bool
+  Arrow :: Type a -> Type b -> Type (a -> b)
+  Unit :: Type ()
+  Prod :: Type a -> Type b -> Type (a, b)
+
+-- | Types whose syntax is known
+class KnownType a where
+  knownType :: Type a
+
+instance KnownType Entity where
+  knownType = E
+
+instance KnownType Bool where
+  knownType = T
+
+instance (KnownType a, KnownType b) => KnownType (a -> b) where
+  knownType = Arrow knownType knownType
+
+instance KnownType () where
+  knownType = Unit
+
+instance (KnownType a, KnownType b) => KnownType (a, b) where
+  knownType = Prod knownType knownType
+
+
 -- ==============
 -- == Algebras ==
 -- ==============
 
 class Lambda repr where
   app :: repr (a -> b) -> repr a -> repr b
-  lam :: (repr a -> repr b) -> repr (a -> b)
+  lam :: KnownType a => (repr a -> repr b) -> repr (a -> b)
+
+class Cartesian repr where  
   unit :: repr ()
   pair :: repr a -> repr b -> repr (a, b)
   fst_ :: repr (a, b) -> repr a
@@ -55,6 +89,8 @@ newtype Eval a = Eval { unEval :: a } deriving Show
 instance Lambda Eval where
   app m n = Eval $ unEval m (unEval n)
   lam f = Eval $ unEval . f . Eval
+
+instance Cartesian Eval where
   unit = Eval ()
   pair m n = Eval (unEval m, unEval n)
   fst_ = Eval . fst . unEval
@@ -82,21 +118,22 @@ instance Heyting Eval where
   true = Eval True
   false = Eval False
 
--- | Class of types for which some domain of quantification can be determined
-class Domain a where
+-- | Class of types for which some Finite domain of quantification can be
+-- determined
+class Finite a where
   domain :: [a]
 
-instance Domain () where
+instance Finite () where
   domain = [()]
 
-instance Domain Entity where
+instance Finite Entity where
   domain = entities
 
-instance (Domain a, Domain b) => Domain (a, b) where
+instance (Finite a, Finite b) => Finite (a, b) where
   domain = [ (a, b) | a <- domain, b <- domain ]
 
 -- | Assuming there is such a domain...
-instance Domain a => HOL a Eval where
+instance Finite a => HOL a Eval where
   forall f = Eval $ all (unEval . f) (map Eval domain)
   exists f = Eval $ any (unEval . f) (map Eval domain)
 
@@ -149,6 +186,8 @@ instance Lambda Print where
                         ++ "."
                         ++ getVar (f (Print $ const $ show i)) (succ i)
                         ++ ")"
+
+instance Cartesian Print where
   unit = Print $ const "★"
   pair m n = Print $ \i -> "⟨" ++ getVar m i ++ ", " ++ getVar n i ++ "⟩"
   fst_ m = Print $ \i -> "(π1 " ++ getVar m i ++ ")"
@@ -202,39 +241,30 @@ instance Show (Print a) where
 
 -- | Coq HOAS
 
-data CoqType a where
-  Entity :: CoqType Entity
-  Prop :: CoqType Bool
-  Arrow :: CoqType a -> CoqType b -> CoqType (a -> b)
-  Unit :: CoqType ()
-  Prod :: CoqType a -> CoqType b -> CoqType (a, b)
-
 data CoqTerm a where
   Var_ :: String -> CoqTerm a
   Con :: String -> CoqTerm a
   App :: CoqTerm (a -> b) -> CoqTerm a -> CoqTerm b
-  Lam :: (CoqTerm a -> CoqTerm b) -> CoqTerm (a -> b)
+  Lam :: Type a -> (CoqTerm a -> CoqTerm b) -> CoqTerm (a -> b)
   TT :: CoqTerm ()
   Pair :: CoqTerm a -> CoqTerm b -> CoqTerm (a, b)
   Fst :: CoqTerm (a, b) -> CoqTerm a
   Snd :: CoqTerm (a, b) -> CoqTerm b
   And, Or, Impl :: CoqTerm Bool -> CoqTerm Bool -> CoqTerm Bool
   True_, False_ :: CoqTerm Bool
-  Forall, Exists :: CoqType a
-                 -> (CoqTerm a -> CoqTerm Bool)
-                 -> CoqTerm Bool
+  Forall, Exists :: Type a -> (CoqTerm a -> CoqTerm Bool) -> CoqTerm Bool
   Equals :: CoqTerm a -> CoqTerm a -> CoqTerm Bool
   Empty :: Context a CoqTerm => CoqTerm (Gamma a)
   Upd :: Context a CoqTerm
       => CoqTerm a -> CoqTerm (Gamma a) -> CoqTerm (Gamma a)
   Sel :: Context a CoqTerm => CoqTerm (Gamma a) -> CoqTerm a
-  Type :: CoqType a -> CoqTerm Bool
+  Type :: Type a -> CoqTerm Bool
 
 helpShow :: CoqTerm a -> Var -> String
 helpShow (Var_ s) i = s
 helpShow (Con s) i = s
 helpShow (App m n) i = "(" ++ helpShow m i ++ " " ++ helpShow n i ++ ")"
-helpShow (Lam f) i = error "Unknown type!"
+helpShow (Lam t f) i = error "Unknown type!"
 helpShow TT i = "tt"
 helpShow (Pair m n) i = "(pair " ++ helpShow m i ++ " " ++ helpShow n i ++ ")"
 helpShow (Fst m) i = "(fst " ++ helpShow m i ++ ")"
@@ -255,8 +285,8 @@ helpShow (Equals m n) i = "(" ++ helpShow m i ++ " = " ++ helpShow n i ++ ")"
 helpShow Empty i = "emp"
 helpShow (Upd m c) i = "(upd " ++ helpShow m i ++ " " ++ helpShow c i ++ ")"
 helpShow (Sel c) i = "(sel " ++ helpShow c i ++ ")"
-helpShow (Type Entity) i = "Entity"
-helpShow (Type Prop) i = "Prop"
+helpShow (Type E) i = "Entity"
+helpShow (Type T) i = "Prop"
 helpShow (Type (Arrow t1 t2)) i = "(" ++ helpShow (Type t1) i ++ " -> "
                                   ++ helpShow (Type t2) i ++ ")"
 helpShow (Type Unit) i = "unit"
@@ -268,9 +298,11 @@ instance Show (CoqTerm a) where
 
 instance Lambda CoqTerm where
   app m n = case m of
-              Lam f -> f n
+              Lam t f -> f n
               _ -> App m n
-  lam = Lam
+  lam = Lam knownType
+
+instance Cartesian CoqTerm where
   unit = TT
   pair = Pair
   fst_ m = case m of
@@ -298,15 +330,20 @@ instance Constant (Entity -> Entity -> Bool) 1 CoqTerm where
 instance Heyting CoqTerm where
   phi /\ psi = case phi of
                  True_ -> psi
+                 False_ -> False_
                  _ -> case psi of
                         True_ -> phi
+                        False_ -> False_
                         _ -> And phi psi
   phi \/ psi = case phi of
+                 True_ -> True_
                  False_ -> psi
                  _ -> case psi of
+                        True_ -> True_
                         False_ -> phi
                         _ -> Or phi psi
   phi --> psi = case phi of
+                  True_ -> psi
                   False_ -> True_
                   _ -> case psi of
                          True_ -> True_
@@ -314,27 +351,9 @@ instance Heyting CoqTerm where
   true = True_
   false = False_
 
-class KnownCoqType a where
-  knownCoqType :: CoqType a
-
-instance KnownCoqType Entity where
-  knownCoqType = Entity
-
-instance KnownCoqType Bool where
-  knownCoqType = Prop
-
-instance (KnownCoqType a, KnownCoqType b) => KnownCoqType (a -> b) where
-  knownCoqType = Arrow knownCoqType knownCoqType
-
-instance KnownCoqType () where
-  knownCoqType = Unit
-
-instance (KnownCoqType a, KnownCoqType b) => KnownCoqType (a, b) where
-  knownCoqType = Prod knownCoqType knownCoqType
-
-instance KnownCoqType a => HOL a CoqTerm where
-  forall = Forall knownCoqType
-  exists = Exists knownCoqType
+instance KnownType a => HOL a CoqTerm where
+  forall = Forall knownType
+  exists = Exists knownType
 
 instance Equality a CoqTerm where
   equals = Equals

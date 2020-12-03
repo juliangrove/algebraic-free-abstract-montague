@@ -1,8 +1,10 @@
 {-# LANGUAGE
+    AllowAmbiguousTypes,
     DeriveFunctor,
     FlexibleInstances,
     FunctionalDependencies,
     GADTs,
+    RankNTypes,
     RebindableSyntax,
     TypeApplications,
     TypeFamilies,
@@ -113,7 +115,7 @@ getPredParam :: FreeGM (() ~> s ∘ (Pred p repr ~> repr p ∘ f)) v
              -> s -> Pred p repr
 getPredParam (Join (Op () g)) s = case g s of Join (Op pred h) -> pred
 
-instance (Lambda repr,
+instance (Cartesian repr,
           Heyting repr,
           Handleable f p s repr)
       => Handleable (Pred e repr ~> repr e ∘ f) (e, p) s repr where
@@ -140,53 +142,76 @@ instance (Lambda repr,
 --       => repr a -> t (repr a) -> T repr
 -- x `elem_` l = any_ (equals x) l
 
-class ExistsTuple repr p where
+class QuantifyTuple t repr where  
+  quantify :: (forall a. (HOL a repr, KnownType a)
+                      => (repr a -> repr Bool) -> repr Bool)
+           -> Pred t repr
+           -> repr Bool
+
+instance Cartesian repr => QuantifyTuple () repr where
+  quantify _ f = f unit
+
+instance (Cartesian repr,
+          HOL a repr,
+          KnownType a,
+          QuantifyTuple t repr)
+      => QuantifyTuple (a, t) repr where
+  quantify q f = q $ \x -> quantify q $ \t -> f (pair x t)
+
+class ExistsTuple p repr where
   existsTuple :: Pred p repr -> T repr
 
-instance Lambda repr => ExistsTuple repr () where
+instance Cartesian repr => ExistsTuple () repr where
   existsTuple f = f unit
 
-instance (Lambda repr,
-          HOL e repr,
-          HOL p repr,
-          ExistsTuple repr p)
-      => ExistsTuple repr (e, p) where
-  existsTuple f = exists (\x -> existsTuple (\p -> f (pair x p)))
-            
-eval :: (Lambda repr,
-         Heyting repr,
-         HOL p repr,
-         ExistsTuple repr p)
-     => FreeGM (() ~> s ∘ (Pred p repr ~> (repr p) ∘ (s ~> () ∘ Id))) (T repr)
-     -> s -> T repr
-eval (Join (Op () f)) s
-  = case f s of
-     Join (Op pred g) -> existsTuple (\p -> case g p of
-                                              Join (Op _s' h)
-                                                -> case h () of
-                                                     Pure a -> pred p /\ a)
+instance (Cartesian repr,
+          HOL a repr,
+          KnownType a,
+          ExistsTuple t repr)
+      => ExistsTuple (a, t) repr where
+  existsTuple f = exists $ \x -> existsTuple $ \t -> f (pair x t)
 
-instance (Lambda repr,
+-- | Evalutate a computation to (a representation of) a Bool, using your
+-- favorite quantifier
+eval_with :: forall repr a p s.
+             (Cartesian repr,
+              Heyting repr,
+              QuantifyTuple p repr)
+          => (forall a. (HOL a repr, KnownType a)
+                     => (repr a -> repr Bool) -> repr Bool)
+          -> FreeGM
+              (() ~> s ∘ (Pred p repr ~> (repr p) ∘ (s ~> () ∘ Id)))
+              (T repr)
+          -> s -> T repr
+eval_with q (Join (Op () f)) s
+  = case f s of
+      Join (Op pred g) -> quantify q -- quantify @p q
+                           (\p -> case g p of
+                                    Join (Op _s' h)
+                                      -> case h () of
+                                           Pure a -> pred p /\ a)
+
+instance (Cartesian repr,
           Heyting repr,
-          HOL p repr,
           Handleable f p s repr,
-          ExistsTuple repr p)
+          QuantifyTuple p repr)
       => Handleable (Quantifier repr ~> (E repr) ∘ f) () s repr where
   handle (Join (Op q f)) = do
     s <- get
     choose (const true)
     put s
-    return (q (\x -> eval (handle @f @p (f x)) s))
+    return (q (\x -> eval_with exists (handle @f @p (f x)) s))
 
-instance (Lambda repr,
+instance (Cartesian repr,
           Heyting repr,
-          HOL p repr,
           Handleable f p s repr,
-          ExistsTuple repr p)
+          QuantifyTuple p repr)
       => Handleable (Determiner repr ~> Determiner repr ∘ f) () s repr where
   handle (Join (Op d f)) = do
     s <- get
     choose (const true)
     put s
-    return (d (\x -> eval (handle @f @p (f (\p q -> p x))) s) -- convervativity
-              (\x -> eval (handle @f @p (f (\p q -> p x /\ q x))) s))
+    return (d (\x -> eval_with exists
+                      (handle @f @p (f (\p q -> p x))) s) -- convervativity
+              (\x -> eval_with exists
+                      (handle @f @p (f (\p q -> p x /\ q x))) s))

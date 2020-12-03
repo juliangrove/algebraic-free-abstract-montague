@@ -166,36 +166,35 @@ sentence5 :: (Lambda repr,
 sentence5 = some dog <| (return catch |> some cat)
 
 -- | Evaluate a sentence into (a representation of) a Bool.
-runSentence :: forall repr p a f.
-               (Lambda repr,
+runSentence :: forall repr a b p f.
+               (Cartesian repr,
                 Heyting repr,
-                HOL p repr,
-                Equality p repr,
-                Context a repr,
-                Handleable f p (repr (Gamma a)) repr,
-                ExistsTuple repr p)
+                HOL a repr,
+                -- KnownType a,
+                QuantifyTuple p repr,
+                Context b repr,
+                Handleable f p (repr (Gamma b)) repr)
             => FreeGM f (T repr) -> T repr
-runSentence phi = eval (handle phi) (empty @a @repr)
+runSentence phi = eval_with @repr @a exists (handle phi) (empty @b @repr)
 
 -- | Examples from README
 
-test1 = runSentence @Print @() @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
+test1 = runSentence @Print @Entity @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
 
-test2 = runSentence @Eval @() @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
+test2 = runSentence @Eval @Entity @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
 
-test3 = runSentence @CoqTerm @() @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
+test3 = runSentence @CoqTerm @Entity @Entity $ every (return dog <| (return who |> (return chase |> bind (some cat)))) <| (return catch |> it)
 
 -- If you evaluate, e.g., test3 in your REPL, you should get:
 -- >>> test3
 -- (forall (x : Entity), ((exists (y : Entity), ((cat y) /\ (((chase y) x) /\ (dog x)))) -> (exists (y : Entity), ((cat y) /\ ((((chase y) x) /\ (dog x)) /\ ((catch (sel (upd y emp))) x))))))
 
-test4 = runSentence @CoqTerm @(Entity, (Entity, ())) @Entity $ some dog <| (return chase |> some cat)
+test4 = runSentence @CoqTerm @Entity @Entity $ some dog <| (return chase |> some cat)
 
 -- >>> test4
 -- (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((chase y) x))))
 
-test5 = runSentence @CoqTerm @(Entity, (Entity, ())) @Entity $ some dog <| (return catch |> some cat)
+test5 = runSentence @CoqTerm @Entity $ some dog <| (return catch |> some cat)
 
 -- >>> test5
 -- (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((catch y) x))))
-
