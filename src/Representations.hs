@@ -264,7 +264,8 @@ helpShow :: CoqTerm a -> Var -> String
 helpShow (Var_ s) i = s
 helpShow (Con s) i = s
 helpShow (App m n) i = "(" ++ helpShow m i ++ " " ++ helpShow n i ++ ")"
-helpShow (Lam t f) i = error "Unknown type!"
+helpShow (Lam t f) i = "(fun (" ++ show i ++ " : " ++ helpShow (Type t) i
+                       ++ ") => " ++ helpShow (f (Var_ (show i))) (succ i) ++ ")"
 helpShow TT i = "tt"
 helpShow (Pair m n) i = "(pair " ++ helpShow m i ++ " " ++ helpShow n i ++ ")"
 helpShow (Fst m) i = "(fst " ++ helpShow m i ++ ")"

@@ -169,8 +169,6 @@ sentence5 = some dog <| (return catch |> some cat)
 runSentence :: forall repr a b p f.
                (Cartesian repr,
                 Heyting repr,
-                HOL a repr,
-                -- KnownType a,
                 QuantifyTuple p repr,
                 Context b repr,
                 Handleable f p (repr (Gamma b)) repr)
