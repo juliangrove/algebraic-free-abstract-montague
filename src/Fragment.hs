@@ -189,7 +189,7 @@ test3 = runSentence @CoqTerm @Entity @Entity $ every (return dog <| (return who 
 -- >>> test3
 -- (forall (x : Entity), ((exists (y : Entity), ((cat y) /\ (((chase y) x) /\ (dog x)))) -> (exists (y : Entity), ((cat y) /\ ((((chase y) x) /\ (dog x)) /\ ((catch (sel (upd y emp))) x))))))
 
-test4 = runSentence @CoqTerm @Entity @Entity $ some dog <| (return chase |> some cat)
+test4 = runSentence @CoqTerm @Entity $ some dog <| (return chase |> some cat)
 
 -- >>> test4
 -- (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((chase y) x))))
