@@ -9,7 +9,7 @@
 
 module Representations where
 
-import GHC.TypeNats
+import GHC.TypeLits
 import Model
 
 -- ===========
@@ -58,7 +58,7 @@ class Cartesian repr where
   fst_ :: repr (a, b) -> repr a
   snd_ :: repr (a, b) -> repr b
 
-class Constant a (i :: Nat) repr where
+class Constant a (str :: Symbol) repr where
   c :: repr a
 
 class Heyting repr where
@@ -96,19 +96,19 @@ instance Cartesian Eval where
   fst_ = Eval . fst . unEval
   snd_ = Eval . snd . unEval
 
-instance Constant (Entity -> Bool) 0 Eval where
+instance Constant (Entity -> Bool) "dog" Eval where
   c = Eval dog'
 
-instance Constant (Entity -> Bool) 1 Eval where
+instance Constant (Entity -> Bool) "cat" Eval where
   c = Eval cat'
 
-instance Constant (Entity -> Bool) 2 Eval where
+instance Constant (Entity -> Bool) "happy" Eval where
   c = Eval happy'
 
-instance Constant (Entity -> Entity -> Bool) 0 Eval where
+instance Constant (Entity -> Entity -> Bool) "chase" Eval where
   c = Eval chase'
 
-instance Constant (Entity -> Entity -> Bool) 1 Eval where
+instance Constant (Entity -> Entity -> Bool) "catch" Eval where
   c = Eval catch'
 
 instance Heyting Eval where  
@@ -193,19 +193,19 @@ instance Cartesian Print where
   fst_ m = Print $ \i -> "(π1 " ++ getVar m i ++ ")"
   snd_ m = Print $ \i -> "(π2 " ++ getVar m i ++ ")"
 
-instance Constant (Entity -> Bool) 0 Print where
+instance Constant (Entity -> Bool) "dog" Print where
   c = Print $ const "dog"
 
-instance Constant (Entity -> Bool) 1 Print where
+instance Constant (Entity -> Bool) "cat" Print where
   c = Print $ const "cat"
 
-instance Constant (Entity -> Bool) 2 Print where
+instance Constant (Entity -> Bool) "happy" Print where
   c = Print $ const "happy"
 
-instance Constant (Entity -> Entity -> Bool) 0 Print where
+instance Constant (Entity -> Entity -> Bool) "chase" Print where
   c = Print $ const "chase"
 
-instance Constant (Entity -> Entity -> Bool) 1 Print where
+instance Constant (Entity -> Entity -> Bool) "catch" Print where
   c = Print $ const "catch"
 
 instance Heyting Print where
@@ -313,19 +313,19 @@ instance Cartesian CoqTerm where
              Pair n o -> o
              _ -> Snd m
 
-instance Constant (Entity -> Bool) 0 CoqTerm where
+instance Constant (Entity -> Bool) "dog" CoqTerm where
   c = Con "dog"
 
-instance Constant (Entity -> Bool) 1 CoqTerm where
+instance Constant (Entity -> Bool) "cat" CoqTerm where
   c = Con "cat"
 
-instance Constant (Entity -> Bool) 2 CoqTerm where
+instance Constant (Entity -> Bool) "happy" CoqTerm where
   c = Con "happy"
 
-instance Constant (Entity -> Entity -> Bool) 0 CoqTerm where
+instance Constant (Entity -> Entity -> Bool) "chase" CoqTerm where
   c = Con "chase"
 
-instance Constant (Entity -> Entity -> Bool) 1 CoqTerm where
+instance Constant (Entity -> Entity -> Bool) "catch" CoqTerm where
   c = Con "catch"
 
 instance Heyting CoqTerm where
@@ -364,3 +364,6 @@ instance Context a CoqTerm where
   empty = Empty
   upd = Upd
   sel = Sel
+
+
+-- | Bayesian semantics

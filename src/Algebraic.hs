@@ -4,6 +4,7 @@
     FlexibleInstances,
     FunctionalDependencies,
     GADTs,
+    MultiParamTypeClasses,
     RankNTypes,
     RebindableSyntax,
     TypeApplications,
@@ -57,90 +58,92 @@ m >> n = m >>= const n
 join :: FreeGM f (FreeGM g v) -> FreeGM (Monoidal (f ∘ g)) v
 join m = m >>= id
 
--- | Every parameter type and arity determines a functor
-data (p ~> a) v = Op p (a -> v) deriving Functor
-
+-- | Type abbreviations
 type E repr = repr Entity
 type T repr = repr Bool
 type Pred p repr = repr p -> T repr
 type Quantifier repr = Pred Entity repr -> T repr
 type Determiner repr = Pred Entity repr -> Quantifier repr
 
-get :: FreeGM (() ~> s ∘ Id) s
-get = Join (Op () (\s -> Pure s))
+-- | Functors
+data Get s v = Get (s -> v) deriving Functor
+data Put s v = Put s v deriving Functor
+data Choose repr p v = Choose (Pred p repr) (repr p -> v) deriving Functor
+data Scope repr v = Scope (Quantifier repr) (E repr -> v) deriving Functor
+data Det repr v = Det (Determiner repr) (Determiner repr -> v) deriving Functor
 
-put :: s -> FreeGM (s ~> () ∘ Id) ()
-put s = Join (Op s return)
+get :: FreeGM (Get s ∘ Id) s
+get = Join $ Get return
 
-choose :: Pred p repr -> FreeGM (Pred p repr ~> repr p ∘ Id) (repr p)
-choose pred = Join (Op pred return)
+put :: s -> FreeGM (Put s ∘ Id) ()
+put s = Join $ Put s $ return ()
 
-scope :: Quantifier repr
-      -> FreeGM (Quantifier repr ~> E repr ∘ Id) (E repr)
-scope q = Join (Op q return)
+choose :: Pred p repr -> FreeGM (Choose repr p ∘ Id) (repr p)
+choose pred = Join $ Choose pred return
 
-det :: Determiner repr
-    -> FreeGM (Determiner repr ~> Determiner repr ∘ Id) (Determiner repr)
-det d = Join (Op d return)
+scope :: Quantifier repr -> FreeGM (Scope repr ∘ Id) (E repr)
+scope q = Join $ Scope q return
+
+det :: Determiner repr -> FreeGM (Det repr ∘ Id) (Determiner repr)
+det d = Join $ Det d return
+
+
+-- ==============
+-- == Handlers ==
+-- ==============
 
 -- | Class used to handle a computation
 class Handleable f p s repr | f -> p where
   handle :: FreeGM f (T repr)
-         -> FreeGM (() ~> s ∘ (Pred p repr ~> repr p ∘ (s ~> () ∘ Id))) (T repr)
+         -> FreeGM (Get s ∘ (Choose repr p ∘ (Put s ∘ Id))) (T repr)
+
+-- class Handleable f g v w repr where -- ???
+  -- handle :: handler -> FreeGM f v -> FreeGM g w
   
 instance (Lambda repr,
           Heyting repr)
       => Handleable Id () s repr where
   handle (Pure v) = do
     s <- get
-    choose (const true)
+    _p <- choose (const true)
     put s
     return v
 
 instance Handleable f p s repr
-      => Handleable (() ~> s ∘ f) p s repr where
-  handle (Join (Op () f)) = do
+      => Handleable (Get s ∘ f) p s repr where
+  handle (Join (Get f)) = do
     s <- get
     case handle (f s) of
-      Join (Op () g) -> g s
+      Join (Get g) -> g s
 
 instance Handleable f p s repr
-      => Handleable (s ~> () ∘ f) p s repr where
-  handle (Join (Op s f)) = do
+      => Handleable (Put s ∘ f) p s repr where
+  handle (Join (Put s f)) = do
     _s' <- get
-    case handle (f ()) of
-      Join (Op () g) -> g s
+    case handle f of
+      Join (Get g) -> g s
 
-getPredParam :: FreeGM (() ~> s ∘ (Pred p repr ~> repr p ∘ f)) v
-             -> s -> Pred p repr
-getPredParam (Join (Op () g)) s = case g s of Join (Op pred h) -> pred
+getPredParam :: FreeGM (Get s ∘ (Choose repr p ∘ f)) v -> s -> Pred p repr
+getPredParam (Join (Get g)) s = case g s of Join (Choose pred h) -> pred
 
 instance (Cartesian repr,
           Heyting repr,
           Handleable f p s repr)
-      => Handleable (Pred e repr ~> repr e ∘ f) (e, p) s repr where
-  handle (Join (Op pred f)) = do
+      => Handleable (Choose repr e ∘ f) (e, p) s repr where
+  handle (Join (Choose pred f)) = do
     s <- get
     ep <- choose (\ep' -> pred (fst_ ep')
                           /\ getPredParam (handle (f (fst_ ep'))) s (snd_ ep'))
     let e = fst_ ep
         p = snd_ ep
     case handle (f e) of
-      Join (Op () g) -> case g s of
-        Join (Op _p' h) -> h p
+      Join (Get g) -> case g s of
+        Join (Choose _p' h) -> h p
 
--- any_ :: (Foldable t,
---          Functor t,
---          Heyting repr)
---      => (repr a -> T repr) -> t (repr a) -> T repr
--- any_ p t = foldr (/\) true $ fmap p t
-
--- elem_ :: (Foldable t,
---           Functor t,
---           Heyting repr,
---           Equality a repr)
---       => repr a -> t (repr a) -> T repr
--- x `elem_` l = any_ (equals x) l
+instance (Cartesian repr,
+          Handleable f p s repr)
+      => Handleable (Choose repr () ∘ f) p s repr where
+  handle (Join (Choose _ f)) = handle $ f unit
 
 class QuantifyTuple t repr where  
   quantify :: (forall a. (HOL a repr, KnownType a)
@@ -158,19 +161,6 @@ instance (Cartesian repr,
       => QuantifyTuple (a, t) repr where
   quantify q f = q $ \x -> quantify q $ \t -> f (pair x t)
 
-class ExistsTuple p repr where
-  existsTuple :: Pred p repr -> T repr
-
-instance Cartesian repr => ExistsTuple () repr where
-  existsTuple f = f unit
-
-instance (Cartesian repr,
-          HOL a repr,
-          KnownType a,
-          ExistsTuple t repr)
-      => ExistsTuple (a, t) repr where
-  existsTuple f = exists $ \x -> existsTuple $ \t -> f (pair x t)
-
 -- | Evalutate a computation to (a representation of) a Bool, using your
 -- favorite quantifier
 eval_with :: forall repr a p s.
@@ -179,39 +169,38 @@ eval_with :: forall repr a p s.
               QuantifyTuple p repr)
           => (forall a. (HOL a repr, KnownType a)
                      => (repr a -> repr Bool) -> repr Bool)
-          -> FreeGM
-              (() ~> s ∘ (Pred p repr ~> (repr p) ∘ (s ~> () ∘ Id)))
-              (T repr)
+          -> (T repr -> T repr -> T repr)
+          -> FreeGM (Get s ∘ (Choose repr p ∘ (Put s ∘ Id))) (T repr)
           -> s -> T repr
-eval_with q (Join (Op () f)) s
+eval_with q r (Join (Get f)) s
   = case f s of
-      Join (Op pred g) -> quantify q -- quantify @p q
-                           (\p -> case g p of
-                                    Join (Op _s' h)
-                                      -> case h () of
-                                           Pure a -> pred p /\ a)
+      Join (Choose pred g) -> quantify q
+                               (\p -> case g p of
+                                        Join (Put _s' h)
+                                          -> case h of
+                                               Pure a -> pred p `r` a)
 
 instance (Cartesian repr,
           Heyting repr,
           Handleable f p s repr,
           QuantifyTuple p repr)
-      => Handleable (Quantifier repr ~> (E repr) ∘ f) () s repr where
-  handle (Join (Op q f)) = do
+      => Handleable (Scope repr ∘ f) () s repr where
+  handle (Join (Scope q f)) = do
     s <- get
-    choose (const true)
+    _p <- choose (const true)
     put s
-    return (q (\x -> eval_with exists (handle @f @p (f x)) s))
+    return (q (\x -> eval_with exists (/\) (handle @f @p (f x)) s))
 
 instance (Cartesian repr,
           Heyting repr,
           Handleable f p s repr,
           QuantifyTuple p repr)
-      => Handleable (Determiner repr ~> Determiner repr ∘ f) () s repr where
-  handle (Join (Op d f)) = do
+      => Handleable (Det repr ∘ f) () s repr where
+  handle (Join (Det d f)) = do
     s <- get
-    choose (const true)
+    _p <- choose (const true)
     put s
-    return (d (\x -> eval_with exists
+    return (d (\x -> eval_with exists (/\)
                       (handle @f @p (f (\p q -> p x))) s) -- convervativity
-              (\x -> eval_with exists
-                      (handle @f @p (f (\p q -> p x /\ q x))) s))
+              (\x -> eval_with forall (-->)
+                      (handle @f @p (f (\p q -> p x --> q x))) s))

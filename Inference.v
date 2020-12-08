@@ -43,18 +43,10 @@ Axiom some_dog_chased_some_cat : (exists (x : Entity), (exists (y : Entity), (((
 (* Conclusion: 'Some dog caught some cat. *)
 Definition some_dog_caught_some_cat : (exists (x : Entity), (exists (y : Entity), (((dog x) /\ (cat y)) /\ ((catch y) x)))).
 Proof.
-  destruct some_dog_chased_some_cat.
-  pose (every_dog_who_chased_a_cat_caught_it x).
-  destruct e.
-  destruct H.
-  destruct H.
-  destruct H.
-  exists x0.
-  auto.
-  rewrite anaphora_resolution in H0.
-  destruct H0.
-  destruct H1.
-  destruct H1.
-  exists x, x0.
-  auto.
+  destruct some_dog_chased_some_cat as [x [y [[dog cat] chase]]].
+  destruct (every_dog_who_chased_a_cat_caught_it x).
+  exists y; exact (conj cat (conj chase dog)).
+  destruct H as [cat0 [[chase0 dog0] catch0]].
+  rewrite anaphora_resolution in catch0.
+  exists x, x0; exact (conj (conj dog cat0) catch0).
 Qed.
